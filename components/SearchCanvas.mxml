@@ -1,0 +1,947 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		   xmlns:s="library://ns.adobe.com/flex/spark" 
+		   xmlns:mx="library://ns.adobe.com/flex/mx"
+		   xmlns:yahoo="http://www.yahoo.com/astra/2006/mxml"
+		   xmlns:search="com.yahoo.webapis.search.*" 
+		   xmlns:params="com.yahoo.webapis.search.params.*"
+		   xmlns:controls="qs.controls.*"
+		   creationComplete="canvas1_creationCompleteHandler(event)"
+		   keyDown="canvas1_keyDownHandler(event)">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<mx:ZipCodeValidator id="zipCodeV" source="{zipCodeContentField}" property="text" trigger="{searchButton}" triggerEvent="click" valid="this.searchWeather()" invalid="zipCodeV_invalidHandler(event)" required="true" requiredFieldError="Please enter a correct ZIP code."/>
+		<yahoo:WeatherService id="weatherService" weatherLoaded="weatherResultEventHandler(event)"
+							  invalidLocationError="weatherErrorEventHandler(event)" xmlLoadingError="weatherErrorEventHandler(event)"/>	
+		<mx:NumberFormatter id="commaFormatter"/>
+		
+		<search:SearchService id="imageSearchService" 
+							  result="returnImageResult(event)"  
+							  fault="returnFault(event)" 
+							  applicationId="UIHomework1"  
+							  type="{SearchService.IMAGE_SEARCH}" >
+			
+			<search:request>
+				<params:SearchParams 
+					query="{this.weather.location.city}"  
+					maximumResults="10"/>
+			</search:request>
+		</search:SearchService>
+		
+		<search:SearchService id="newsSearchService" 
+							  result="returnNewsResult(event)"  
+							  fault="returnFault(event)" 
+							  applicationId="UIHomework1"  
+							  type="{SearchService.NEWS_SEARCH}" >
+			
+			<search:request>
+				<params:SearchParams 
+					query="{this.weather.location.city}"  
+					maximumResults="5"/>
+			</search:request>
+		</search:SearchService>
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.yahoo.webapis.ServiceFault;
+			import com.yahoo.webapis.search.MediaSearchResult;
+			import com.yahoo.webapis.search.SearchService;
+			import com.yahoo.webapis.search.WebSearchResult;
+			import com.yahoo.webapis.search.events.SearchFaultEvent;
+			import com.yahoo.webapis.search.events.SearchResultEvent;
+			import com.yahoo.webapis.search.params.SearchParams;
+			import com.yahoo.webapis.weather.ForecastConditions;
+			import com.yahoo.webapis.weather.Weather;
+			import com.yahoo.webapis.weather.events.WeatherErrorEvent;
+			import com.yahoo.webapis.weather.events.WeatherResultEvent;
+			
+			import flash.net.navigateToURL;
+			
+			import mx.controls.*;
+			import mx.controls.Alert;
+			import mx.events.*;
+			
+			import spark.events.TextOperationEvent;
+			
+			[Bindable]
+			public var zipCode:String = "";
+			
+			[Bindable]
+			public var staticZipCode:String = "";
+			
+			[Bindable]
+			public var units:String = "f";
+			
+			[Bindable]
+			public var imageUrl:String = "";
+			
+			[Bindable]
+			public var imageUrl1:String = "";
+			
+			[Bindable]
+			public var imageUrl2:String = "";
+			
+			[Bindable]
+			public var date1:String = "";
+			
+			[Bindable]
+			public var date2:String = "";
+			
+			[Bindable]
+			public var fore1:ForecastConditions;
+			
+			[Bindable]
+			public var fore2:ForecastConditions;
+			
+			[Bindable]
+			public var imageSearchData:Object;
+			
+			[Bindable]
+			public var imageNum:Number = 0;
+			
+			private var unitsData:Object = [{label: "f"}, {label: "c"}];
+			
+			private var myMenu:Menu;
+			
+			private var searched:Boolean = false;
+			
+			[Bindable]
+			private var weather:Weather;
+			
+			public var imageData:MediaSearchResult;
+			
+			private function getUrl(code:Number):String
+			{
+				switch(code)
+				{
+					case 32:
+					case 36:
+					case 3200:
+						return "image/Sunny.png";
+					case 31:
+						return "image/Clear.png";
+					case 28:
+					case 30:
+						return "image/Partly Cloudy (day).png";
+					case 27:
+					case 29:
+						return "image/Partly Cloudy (night).png";
+					case 34:
+						return "image/Fair (day).png";
+					case 33:
+						return "image/Fair (night).png";
+					case 0:
+					case 1:
+					case 2:
+					case 23:
+					case 24:
+						return "image/windy.png";
+					case 19:
+					case 20:
+					case 21:
+					case 22:
+						return "image/Fog.png";
+					case 25:
+						return "image/cold.png";
+					case 26:
+					case 44:
+						return "image/Cloudy.png";
+					case 3:
+					case 4:
+					case 37:
+					case 38:
+					case 39:
+						return "image/thunderstorms.png";
+					case 5:
+					case 6:
+					case 7:
+					case 18:
+					case 45:
+					case 47:
+						return "image/mixed rain and snow.png";
+					case 10:
+					case 11:
+					case 12:
+					case 40:
+						return "image/Showers.png";
+					case 13:
+					case 14:
+					case 15:
+					case 16:
+					case 41:
+					case 42:
+					case 43:
+					case 46:
+						return "image/Snow.png";
+					case 8:
+					case 9:
+						return "image/Drizzle.png";
+					case 17:
+					case 35:
+						return "image/Hail.png";
+				}
+				return "Wrong!";
+			}
+			
+			private function getDate(date:Number):String
+			{
+				switch(date)
+				{
+					case 0:
+						return "SUN";
+					case 1:
+						return "MON";
+					case 2:
+						return "TUE";
+					case 3:
+						return "WED";
+					case 4:
+						return "THU";
+					case 5:
+						return "FRI";
+					case 6:
+						return "SAT";
+				}
+				return "Wrong!";
+			}
+			
+			private function searchWeather():void
+			{
+				this.weatherService.getWeather(this.zipCode, this.units);
+				if (this.newsButton != null)
+					this.newsButton.selected = false;
+				this.staticZipCode = this.zipCode;
+				this.currentState = "Searching";
+				this.searchButton.setFocus();
+			}
+			
+			private function weatherResultEventHandler(event:WeatherResultEvent):void
+			{
+				this.weather = event.data as Weather;
+				this.imageUrl = getUrl(this.weather.current.code);
+				this.fore1 = this.weather.forecast[0];
+				this.fore2 = this.weather.forecast[1];
+				this.imageUrl1 = getUrl(this.fore1.code);
+				this.imageUrl2 = getUrl(this.fore2.code);
+				this.date1 = getDate(this.fore1.date.day);
+				this.date2 = getDate(this.fore2.date.day);
+				this.search();
+				this.searched = true;
+				this.currentState = "BeforeResult";
+			}
+			
+			private function weatherErrorEventHandler(event:WeatherErrorEvent):void
+			{
+				this.currentState = "Basic";
+				Alert.show("Unable to connect to weather service at this time.", "Error");
+			}
+			
+			private function initMenu():void {
+				myMenu = new Menu();
+				var dp:Object = [{label: "F"}, {label: "C"}];
+				myMenu.dataProvider = dp;
+				myMenu.selectedIndex = 0;
+				myMenu.addEventListener(MenuEvent.ITEM_CLICK, itemClickHandler);
+				unitPopUpButton.popUp = myMenu;
+				unitPopUpButton.label = myMenu.dataProvider[myMenu.selectedIndex].label;
+			}
+			
+			private function itemClickHandler(evt:MenuEvent):void {
+				var label:String = evt.item.label;
+				unitPopUpButton.label = label;
+				unitPopUpButton.close();
+				myMenu.selectedIndex = evt.index;
+				this.units = unitsData[evt.index].label;
+			}
+			
+			
+			protected function unitPopUpButton_clickHandler(event:MouseEvent):void
+			{
+				if (unitPopUpButton.isPopUp == false)
+				{
+					unitPopUpButton.open();
+					unitPopUpButton.isPopUp = true;
+				}
+				else
+				{
+					unitPopUpButton.close();
+					unitPopUpButton.isPopUp = false;
+				}
+			}
+			
+			
+			protected function searchButton_clickHandler(event:MouseEvent):void
+			{
+				//this.searchWeather();
+			}
+			
+			
+			protected function zipCodeContentField_changeHandler(event:TextOperationEvent):void
+			{
+				this.zipCode = this.zipCodeContentField.text;
+			}
+
+
+			protected function resize1_effectEndHandler(event:EffectEvent):void
+			{
+				this.currentState = "Result";
+			}
+			
+			public function search():void
+			{
+				imageSearchService.send();
+				newsSearchService.send();
+			}
+			
+			public function returnImageResult(event:SearchResultEvent):void
+			{
+				trace(event);
+				this.imageSearchData = event.result;
+				this.imageNum = 0;
+				if (this.previousButton != null)
+				{
+					this.previousButton.enabled = false;
+				}
+				if (this.nextButton != null)
+				{
+					this.nextButton.enabled = true;
+				}
+				imageData = this.imageSearchData[0];
+				this.locationImage.source = imageData.thumbnail.url;
+				this.locationBigImage.source = imageData.url;
+			}
+			
+			public function returnNewsResult(event:SearchResultEvent):void
+			{
+				trace(event);
+			}
+			
+			public function returnFault(event:SearchFaultEvent):void
+			{
+				trace(event.fault.faultString);
+			}
+
+
+			protected function locationImage_clickHandler(event:MouseEvent):void
+			{
+				//Alert.show(1 + this.currentState);
+				if (this.currentState == "Result")
+					this.currentState = "ResultImage";
+				else if(this.currentState == "ResultImage")
+					this.currentState = "Result";
+				else if (this.currentState == "ResultNews")
+					this.currentState = "ResultImageNews";
+				else if (this.currentState == "ResultImageNews")
+					this.currentState = "ResultNews";
+				else
+					currentState = "Basic";
+				//Alert.show(2 + this.currentState);
+			}
+
+
+			protected function newsButton_clickHandler(event:MouseEvent):void
+			{
+				if (newsButton.selected == true)
+				{
+					if (this.currentState == "Result")
+						this.currentState = "ResultNews";
+					else
+						this.currentState = "ResultImageNews";
+				}
+				else
+				{
+					if (this.currentState == "ResultNews")
+						this.currentState = "Result";
+					else
+						this.currentState = "ResultImage";
+				}
+			}
+
+
+			protected function previousButton_clickHandler(event:MouseEvent):void
+			{
+				this.imageNum--;
+				if (this.imageNum == 8)
+				{
+					this.nextButton.enabled = true;
+				}
+				imageData = this.imageSearchData[this.imageNum];
+				this.locationImage.source = imageData.thumbnail.url;
+				this.locationBigImage.source = imageData.url;
+				if (this.imageNum == 0)
+				{
+					this.previousButton.enabled = false;
+				}
+			}
+
+
+			protected function nextButton_clickHandler(event:MouseEvent):void
+			{
+				this.imageNum++;
+				if (this.imageNum == 1)
+				{
+					this.previousButton.enabled = true;
+				}
+				imageData = this.imageSearchData[this.imageNum];
+				this.locationImage.source = imageData.thumbnail.url;
+				this.locationBigImage.source = imageData.url;
+				if (this.imageNum == 9)
+				{
+					this.nextButton.enabled = false;
+				}
+			}
+
+
+			protected function zipCodeContentField_creationCompleteHandler(event:FlexEvent):void
+			{
+				//this.zipCodeContentField.setFocus();
+			}
+
+
+			protected function closeButton_mouseOverHandler(event:MouseEvent):void
+			{
+				this.closeButton.visible = false;
+				this.closeButton.enabled = false;
+				this.closeButtonOver.visible = true;
+				this.closeButtonOver.enabled = true;
+			}
+
+
+			protected function openButton_mouseOverHandler(event:MouseEvent):void
+			{
+				    this.openButton.visible = false;
+					this.openButton.enabled = false;
+					this.openButtonOver.visible = true;
+					this.openButtonOver.enabled = true;
+			}
+
+
+			protected function closeButtonOver_mouseOutHandler(event:MouseEvent):void
+			{
+				this.closeButtonOver.visible = false;
+				this.closeButtonOver.enabled = false;
+				this.closeButton.visible = true;
+				this.closeButton.enabled = true;
+			}
+
+
+			protected function openButtonOver_mouseOutHandler(event:MouseEvent):void
+			{
+				this.openButtonOver.visible = false;
+				this.openButtonOver.enabled = false;
+				this.openButton.visible = true;
+				this.openButton.enabled = true;
+			}
+
+
+			protected function closeButtonDown_mouseUpHandler(event:MouseEvent):void
+			{
+				this.closeButtonDown.visible = false;
+				this.closeButtonDown.enabled = false;
+				this.closeButtonOver.visible = true;
+				this.closeButtonOver.enabled = true;
+				this.currentState = "Basic";
+				if (this.newsButton != null)
+					this.newsButton.selected = false;
+				
+			}
+
+
+			protected function openButtonDown_mouseUpHandler(event:MouseEvent):void
+			{
+				this.openButtonDown.visible = false;
+				this.openButtonDown.enabled = false;
+				this.openButtonOver.visible = true;
+				this.openButtonOver.enabled = true;
+				if (this.currentState == "Basic" && searched)
+					this.currentState = "Result";
+			}
+
+
+			protected function closeButtonOver_mouseDownHandler(event:MouseEvent):void
+			{
+				this.closeButtonOver.visible = false;
+				this.closeButtonOver.enabled = false;
+				this.closeButtonDown.visible = true;
+				this.closeButtonDown.enabled = true;
+			}
+
+
+			protected function openButtonOver_mouseDownHandler(event:MouseEvent):void
+			{
+				this.openButtonOver.visible = false;
+				this.openButtonOver.enabled = false;
+				this.openButtonDown.visible = true;
+				this.openButtonDown.enabled = true;
+			}
+			
+			protected function closeButtonDown_mouseOutHandler(event:MouseEvent):void
+			{
+				this.closeButtonDown.visible = false;
+				this.closeButtonDown.enabled = false;
+				this.closeButton.visible = true;
+				this.closeButton.enabled = true;
+			}
+			
+			
+			protected function openButtonDown_mouseOutHandler(event:MouseEvent):void
+			{
+				this.openButtonDown.visible = false;
+				this.openButtonDown.enabled = false;
+				this.openButton.visible = true;
+				this.openButton.enabled = true;
+			}
+
+
+			protected function zipCodeContentField_keyDownHandler(event:KeyboardEvent):void
+			{
+				if (event.keyCode == Keyboard.ENTER)
+				{
+					this.zipCodeV.validate();
+				}
+			}
+
+
+			protected function zipCodeV_invalidHandler(event:ValidationResultEvent):void
+			{
+				this.zipCodeContentField.setFocus();
+				this.zipCodeContentField.selectAll();
+			}
+
+
+			protected function zipCodeContentField_focusInHandler(event:FocusEvent):void
+			{
+				this.zipCodeContentField.selectAll();
+			}
+
+
+			protected function canvas1_creationCompleteHandler(event:FlexEvent):void
+			{
+				ExternalInterface.call('setFocusOnFlash');
+				this.zipCodeContentField.setFocus();
+			}
+
+
+			protected function canvas1_keyDownHandler(event:KeyboardEvent):void
+			{
+				if (event.keyCode == Keyboard.ENTER)
+				{
+					if (focusManager.getFocus() == this.searchButton)
+					{
+						this.zipCodeV.validate();
+					}
+					else if (focusManager.getFocus() == this.previousButton)
+					{
+						this.imageNum--;
+						if (this.imageNum == 8)
+						{
+							this.nextButton.enabled = true;
+						}
+						imageData = this.imageSearchData[this.imageNum];
+						this.locationImage.source = imageData.thumbnail.url;
+						this.locationBigImage.source = imageData.url;
+						if (this.imageNum == 0)
+						{
+							this.previousButton.enabled = false;
+						}
+					}
+					else if (focusManager.getFocus() == this.nextButton)
+					{
+						this.imageNum++;
+						if (this.imageNum == 1)
+						{
+							this.previousButton.enabled = true;
+						}
+						imageData = this.imageSearchData[this.imageNum];
+						this.locationImage.source = imageData.thumbnail.url;
+						this.locationBigImage.source = imageData.url;
+						if (this.imageNum == 9)
+						{
+							this.nextButton.enabled = false;
+						}
+					}
+				}
+			}
+
+
+			protected function locationBigImage_clickHandler(event:MouseEvent):void
+			{
+				navigateToURL(new URLRequest(this.imageData.clickURL), '_blank');
+			}
+
+		]]>
+	</fx:Script>
+	
+	
+	
+	<s:SkinnableContainer id="newsCom" includeIn="Result, ResultNews, ResultImage, ResultImageNews"
+						  y="230"
+						  width="503" height="400"
+						  height.Result="0" height.ResultImage="0"
+						  visible="false" visible.ResultNews="true" visible.ResultImageNews="true"
+						  skinClass="components.BGNews">
+		<mx:Label id="newsLabel" text="Top 5 News:" x="10" y="33" fontSize="20" fontWeight="bold"
+				  visible="false" visible.ResultNews="true" visible.ResultImageNews="true" color="#FFFFFF"/>
+		<mx:List id="resultsList" showDataTips="true" dataProvider="{newsSearchService.lastResult}" variableRowHeight="true" alpha="0.75" right="10" top="60" bottom="30" left="10"
+				 visible="false" visible.ResultNews="true" visible.ResultImageNews="true">
+			<mx:itemRenderer>
+				<fx:Component>
+					<mx:VBox width="100%" doubleClickEnabled="true" doubleClick="navigateToURL(new URLRequest(data.clickURL), '_blank')" verticalScrollPolicy="off" horizontalScrollPolicy="off">
+						<mx:HBox width="100%" >
+							<mx:Label text="{data.index  + 1}" width="30"/>
+							<mx:Label width="100%"  text="{data.name}" fontWeight="bold"/>
+						</mx:HBox>
+						<mx:Image source="{data.thumbnail.url}" visible="{data.thumbnail.url}" includeInLayout="{data.thumbnail.url}"  />
+						<mx:Label width="100%" height="{data.summary? 40: 0}"  text="{data.summary}"/>
+					</mx:VBox>
+				</fx:Component>
+			</mx:itemRenderer>
+		</mx:List>
+	</s:SkinnableContainer>
+	
+	<s:SkinnableContainer id="imageCom" includeIn="Searching, BeforeResult, Result, ResultImage, ResultNews, ResultImageNews"
+						  x="486" y="22" height="238"
+						  x.Result="20" x.ResultNews="20"
+						  visible="false" visible.ResultImage="true" visible.ResultImageNews="true">
+		<mx:Image id="locationBigImage" height="238" width="430" click="locationBigImage_clickHandler(event)"/>
+	</s:SkinnableContainer>
+	
+	<s:SkinnableContainer id="weatherCom" 
+						  width="0" height="110"
+						  width.Result="230" width.ResultImage="230" width.ResultNews="230" width.ResultImageNews="230"
+						  height.BeforeResult="238" height.Result="238" height.ResultImage="238" height.ResultNews="238" height.ResultImageNews="238"
+						  x.Basic="230" x.Searching="230" x.BeforeResult="230"
+						  skinClass="components.BGweather" y="22">
+		<s:SkinnableContainer id="todayCom" includeIn="Result, ResultImage, ResultNews, ResultImageNews" y="100" width="230" height="69"
+							  skinClass="components.BGweather2"
+							  visible="true" visible.Basic="false">
+			<s:Label id="todayHTemp" x="159" y="10" fontSize="20" color="#FFFFFF"
+					 text="{this.fore1.high + String.fromCharCode(0x00B0)}"
+					 toolTip="H: {this.fore1.high + String.fromCharCode(0x00B0) + this.weather.units.temperature}"/>
+			<s:Label id="todayLTemp" x="161" y="40" fontSize="15" color="#0837AF"
+					 text="{this.fore1.low + String.fromCharCode(0x00B0)}"
+					 toolTip="L: {this.fore1.low + String.fromCharCode(0x00B0) + this.weather.units.temperature}"/>
+			<mx:Image id="todayImage" x="85" y="12" width="60"
+					  source="{this.imageUrl1}"
+				      toolTip="{this.fore1.description}"/>
+			<s:Label id="todayDateLabel" x="10" y="20" fontSize="31"
+					 text="{this.date1}"/>
+		</s:SkinnableContainer>
+		
+		<s:Label id="nowTemp" includeIn="Result, ResultImage, ResultNews, ResultImageNews"
+				 text="{this.weather.current.temperature + String.fromCharCode(0x00B0)}"
+				 toolTip="{this.weather.current.temperature + String.fromCharCode(0x00B0) + this.weather.units.temperature}"
+				 x="130" y="50" fontSize="45" visible="false" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Label id="nowDesc" includeIn="Result, ResultImage, ResultNews, ResultImageNews" text="{this.weather.current.description}"
+				 x="10" y="60" fontSize="19" visible="false" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		
+		<s:Label id="tomHTemp" includeIn="Result, ResultImage, ResultNews, ResultImageNews" x="159" y="179" fontSize="20" color="#FFFFFF"
+				 text="{this.fore2.high + String.fromCharCode(0x00B0)}"
+				 toolTip="H: {this.fore2.high + String.fromCharCode(0x00B0) + this.weather.units.temperature}"
+				 visible="false" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Label id="tomLTemp" includeIn="Result, ResultImage, ResultNews, ResultImageNews" x="161" y="209" fontSize="15" color="#0837AF"
+				 text="{this.fore2.low + String.fromCharCode(0x00B0)}"
+				 toolTip="L: {this.fore2.low + String.fromCharCode(0x00B0) + this.weather.units.temperature}"
+				 visible="false" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<mx:Image id="tomImage" includeIn="Result, ResultImage, ResultNews, ResultImageNews" x="85" y="181" width="60"
+				  source="{this.imageUrl2}"
+				  toolTip="{this.fore2.description}"
+				  visible="false" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Label id="tomDateLabel" includeIn="Result, ResultImage, ResultNews, ResultImageNews" x="10" y="189" fontSize="31"
+				 text="{this.date2}" visible="false" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+	</s:SkinnableContainer>
+	<s:SkinnableContainer id="locationCom"
+						  width="300" height="150"
+						  height.Basic="0" height.Searching="0"
+						  skinClass="components.BG" 
+						  x="203" y="110">
+		<s:Label id="locationLabel" includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews"
+				 text="{components.WeatherUtil.parseLocation(this.weather)}"
+				 x="20" y="40" fontSize="15" visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Label id="countryLabel" includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews"
+				 text="{components.WeatherUtil.parseConutry(this.weather)}"
+				 x="20" y="65" fontSize="15" visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Label id="zipLabel" includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews"
+				 text="{this.staticZipCode}"
+				 x="60" y="65" fontSize="15" visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Label id="timeLabel" includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews"
+				 text="Updated {this.weather.date.month+1}/{this.weather.date.date}/{this.weather.date.fullYear} {this.weather.date.hours}:{this.weather.date.minutes}"
+				 x="20" y="90" fontSize="10" visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		
+		<mx:Image id="locationImage" includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews" x="177" y="37" width="113" height="103"
+				  visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"
+				  click="locationImage_clickHandler(event)"
+				  toolTip="Click to see the large image"/>
+		<s:ToggleButton includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews"
+						x="27" y="119" label="News" height="21" width="127" selected="false"
+						id="newsButton" click="newsButton_clickHandler(event)"
+						visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Button id="previousButton" includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews" x="177" y="119" width="50" height="21"
+				  click="previousButton_clickHandler(event)" label="prev" enabled="false" toolTip="Previous image"
+				  visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+		<s:Button id="nextButton" includeIn="BeforeResult, Result, ResultImage, ResultNews, ResultImageNews" x="240" y="119" width="50" height="21"
+				  click="nextButton_clickHandler(event)" label="next" toolTip="Next image"
+				  visible="false" visible.BeforeResult="true" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true"/>
+	</s:SkinnableContainer>
+	
+	<s:SkinnableContainer id="searchCom" skinClass="components.BG" width="300" height="115" x="203" y="22" >
+		<mx:Label id="zipCodeLabel" text="ZIP Code:" x="20" y="10"/>
+		<s:TextInput id="zipCodeContentField" text="{zipCode}" y="30" x="20" width="219" change="zipCodeContentField_changeHandler(event)" enabled.Searching="false"
+					 creationComplete="zipCodeContentField_creationCompleteHandler(event)"
+					 keyDown="zipCodeContentField_keyDownHandler(event)"
+					 focusIn="zipCodeContentField_focusInHandler(event)"/>
+		<mx:PopUpButton id="unitPopUpButton" x="229" y="30" label="" height="19" width="60" cornerRadius="8" toolTip="Choose the unit" creationComplete="initMenu()" click="unitPopUpButton_clickHandler(event)" enabled.Searching="false"/>
+		<s:Button x="93" y="75" label="Search" id="searchButton" width="115" height="31" click="searchButton_clickHandler(event)" enabled.Searching="false"/>
+		<s:Label id="degreesLable" x="229" y="14" text="Degrees:"/>
+		<mx:ProgressBar includeIn="Searching" x="46" y="55" indeterminate="true" labelPlacement="center"/>
+		<s:SkinnableContainer id="closeButton" x="10" y="75" width="30" height="30"
+				              skinClass="components.BGButtonClose"
+							  mouseOver="closeButton_mouseOverHandler(event)"/>
+		<s:SkinnableContainer id="openButton" x="45" y="75" width="30" height="30"
+							  skinClass="components.BGButtonOpen"
+							  mouseOver="openButton_mouseOverHandler(event)"/>
+		<s:SkinnableContainer id="closeButtonOver" x="10" y="75" width="30" height="30"
+							  skinClass="components.BGButtonCloseOver"
+							  visible="false" enabled="false"
+							  mouseOut="closeButtonOver_mouseOutHandler(event)" mouseDown="closeButtonOver_mouseDownHandler(event)"/>
+		<s:SkinnableContainer id="openButtonOver" x="45" y="75" width="30" height="30"
+							  skinClass="components.BGButtonOpenOver"
+							  visible="false" enabled="false"
+							  mouseOut="openButtonOver_mouseOutHandler(event)" mouseDown="openButtonOver_mouseDownHandler(event)"/>
+		<s:SkinnableContainer id="closeButtonDown" x="10" y="75" width="30" height="30"
+							  skinClass="components.BGButtonCloseDown"
+							  visible="false" enabled="false"
+							  mouseUp="closeButtonDown_mouseUpHandler(event)"
+							  mouseOut="closeButtonDown_mouseOutHandler(event)"/>
+		<s:SkinnableContainer id="openButtonDown" x="45" y="75" width="30" height="30"
+							  skinClass="components.BGButtonOpenDown"
+							  visible="false" enabled="false"
+							  mouseUp="openButtonDown_mouseUpHandler(event)"
+							  mouseOut="openButtonDown_mouseOutHandler(event)"/>
+		<s:SkinnableContainer id="closeButtonUnable" x="10" y="75" width="30" height="30"
+							  skinClass="components.BGButtonUnable"
+							  visible="false" visible.Searching="true" visible.BeforeResult="true"
+							  enabled="false" enabled.Searching="true" enabled.BeforeResult="true"/>
+		<s:SkinnableContainer id="openButtonUnable" x="45" y="75" width="30" height="30"
+							  skinClass="components.BGButtonUnable"
+							  visible="false" visible.Searching="true" visible.BeforeResult="true"
+							  enabled="false" enabled.Searching="true" enabled.BeforeResult="true"/>
+
+	</s:SkinnableContainer>
+	
+	<mx:Image includeIn="Result, ResultImage, ResultNews, ResultImageNews" x="60" id="weatherNowImage" scaleContent="true" top="0"
+			  source="{imageUrl}" visible="false" visible.Result="true" visible.ResultImage="true" visible.ResultNews="true" visible.ResultImageNews="true" width="110"/>
+	
+	<mx:states>
+		<mx:State name="Basic"/>
+		
+		<mx:State name="Searching"/>
+		
+		<mx:State name="BeforeResult"/>
+		
+		<mx:State name="Result"/>
+		
+		<mx:State name="ResultImage"/>
+		
+		<mx:State name="ResultNews"/>
+		
+		<mx:State name="ResultImageNews"/>
+	</mx:states>
+	
+	<mx:transitions>
+		<mx:Transition fromState="Searching" toState="BeforeResult">
+			<s:Sequence>
+				<s:Resize target="{locationCom}" duration="200"/>
+				<s:SetAction target="{locationLabel}" property="visible"/>
+				<s:SetAction target="{countryLabel}" property="visible"/>
+				<s:SetAction target="{locationImage}" property="visible"/>
+				<s:SetAction target="{newsButton}" property="visible"/>
+				<s:SetAction target="{zipLabel}" property="visible"/>
+				<s:SetAction target="{timeLabel}" property="visible"/>
+				<s:SetAction target="{previousButton}" property="visible"/>
+				<s:SetAction target="{nextButton}" property="visible"/>
+				<s:Resize target="{weatherCom}" effectEnd="resize1_effectEndHandler(event)"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="BeforeResult" toState="Result">
+			<s:Sequence>
+				<s:Move target="{weatherCom}" duration="300"/>
+				<s:Resize target="{weatherCom}" duration="100"/>
+				<s:SetAction target="{nowTemp}" property="visible"/>
+				<s:SetAction target="{weatherNowImage}" property="visible"/>
+				<s:SetAction target="{nowDesc}" property="visible"/>
+				<s:SetAction target="{tomDateLabel}" property="visible"/>
+				<s:SetAction target="{tomHTemp}" property="visible"/>
+				<s:SetAction target="{tomImage}" property="visible"/>
+				<s:SetAction target="{tomLTemp}" property="visible"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<s:Transition fromState="Basic" toState="Result">
+			<s:Sequence>
+				<s:Resize target="{locationCom}" duration="200"/>
+				<s:SetAction target="{locationLabel}" property="visible"/>
+				<s:SetAction target="{countryLabel}" property="visible"/>
+				<s:SetAction target="{locationImage}" property="visible"/>
+				<s:SetAction target="{newsButton}" property="visible"/>
+				<s:SetAction target="{zipLabel}" property="visible"/>
+				<s:SetAction target="{timeLabel}" property="visible"/>
+				<s:SetAction target="{previousButton}" property="visible"/>
+				<s:SetAction target="{nextButton}" property="visible"/>
+				<s:SetAction target="{todayCom}" property="visible"/>
+				<s:Resize target="{weatherCom}" duration="100"/>
+				<s:SetAction target="{nowTemp}" property="visible"/>
+				<s:SetAction target="{nowDesc}" property="visible"/>
+				<s:SetAction target="{tomDateLabel}" property="visible"/>
+				<s:SetAction target="{tomHTemp}" property="visible"/>
+				<s:SetAction target="{tomImage}" property="visible"/>
+				<s:SetAction target="{tomLTemp}" property="visible"/>
+				<s:Move target="{weatherCom}" duration="300"/>
+				<s:SetAction target="{weatherNowImage}" property="visible"/>
+			</s:Sequence>
+		</s:Transition>
+		
+		<mx:Transition fromState="Result" toState="Basic">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="Result" toState="Searching">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImage" toState="Basic">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImage" toState="Searching">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultNews" toState="Basic">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultNews" toState="Searching">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImageNews" toState="Basic">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImageNews" toState="Searching">
+			<s:Sequence>
+				<s:Parallel>
+					<s:Resize target="{weatherCom}" duration="500"/>
+					<s:Resize target="{locationCom}" duration="500"/>
+				</s:Parallel>
+				<s:Move target="{weatherCom}" duration="500"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="Result" toState="ResultImage">
+			<s:Sequence>
+				<s:Move target="{imageCom}" duration="300"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="Result" toState="ResultNews">
+			<s:Sequence>
+				<s:Resize target="{newsCom}" duration="200"/>
+				<s:SetAction target="{resultsList}" property="visible"/>
+				<s:SetAction target="{newsLabel}" property="visible"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImage" toState="ResultImageNews">
+			<s:Sequence>
+				<s:Resize target="{newsCom}" duration="200"/>
+				<s:SetAction target="{resultsList}" property="visible"/>
+				<s:SetAction target="{newsLabel}" property="visible"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultNews" toState="ResultImageNews">
+			<s:Sequence>
+				<s:Move target="{imageCom}" duration="300"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultNews" toState="Result">
+			<s:Sequence>
+				<s:SetAction target="{resultsList}" property="visible"/>
+				<s:SetAction target="{newsLabel}" property="visible"/>
+				<s:Resize target="{newsCom}" duration="200"/>
+				<s:SetAction target="{newsCom}" property="visible"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImage" toState="Result">
+			<s:Sequence>
+				<s:Move target="{imageCom}" duration="300"/>
+				<s:SetAction target="{imageCom}" property="visible"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImageNews" toState="ResultImage">
+			<s:Sequence>
+				<s:SetAction target="{resultsList}" property="visible"/>
+				<s:SetAction target="{newsLabel}" property="visible"/>
+				<s:Resize target="{newsCom}" duration="200"/>
+				<s:SetAction target="{newsCom}" property="visible"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+		<mx:Transition fromState="ResultImageNews" toState="ResultNews">
+			<s:Sequence>
+				<s:Move target="{imageCom}" duration="300"/>
+				<s:SetAction target="{imageCom}" property="visible"/>
+			</s:Sequence>
+		</mx:Transition>
+		
+	</mx:transitions>
+</mx:Canvas>
